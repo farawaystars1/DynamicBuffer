@@ -2,7 +2,9 @@
 # 项目特定的逻辑。
 #
 cmake_minimum_required (VERSION 3.8)
-
+include_directories("/home/xingxing/boost/BOOST/include")
+link_directories("/home/xingxing/boost/BOOST/lib")
+link_libraries("boost_json")
 # 将源代码添加到此项目的可执行文件。
 add_executable (DynamicBuffer "DynamicBuffer.cpp" "DynamicBuffer.h" "Buffer/Endian.h" "Buffer/Buffer.h" "Buffer/Buffer.cpp")
 

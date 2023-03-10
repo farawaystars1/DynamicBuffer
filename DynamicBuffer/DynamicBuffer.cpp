@@ -1,20 +1,191 @@
-﻿// DynamicBuffer.cpp: 定义应用程序的入口点。
+﻿//
+// server.cpp
+// ~~~~~~~~~~
+//
+// Copyright (c) 2003-2022 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+//
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "DynamicBuffer.h"
-#include"Buffer/Buffer.h"
-#include<iostream>
-#include<iostream>
+#include<boost/asio.hpp>
+#include<boost/bind/bind.hpp>
 #include<memory>
-#include<vector>
-int main()
-{
-	std::shared_ptr<Buffer> ptr(new Buffer("good"));
-	ptr->append("hello");
-	ptr->append("hello9999");
-	ptr->append("hello");
-	ptr->append("hello");
-	ptr->append("hello");
-	auto x=ptr->read(11);
+#include<string>
+#include<iostream>
+#include"Buffer/Buffer.h"
+#include<functional>
+using namespace boost;
+using namespace boost::asio;
+using namespace boost::asio::ip;
 
+void fail(system::error_code ec, const char* reason)
+{
+    std::cout << reason << ':' << ec.message() << std::endl;
+    return;
+}
+class tcp_connection
+    : public std::enable_shared_from_this<tcp_connection>
+{
+public:
+    typedef std::shared_ptr<tcp_connection> pointer;
+    tcp_connection(tcp::socket &&socket)
+        : socket_(std::move(socket)), inBuf_(new Buffer()), outBuf_(new Buffer())
+    {
+        isDealingMessage_ = false;
+        isSendingMessage_ = false;
+        //    onMessageCallback_ = std::bind(&tcp_connection::onMessage, shared_from_this(), std::placeholders::_1, std::placeholders::_2);
+
+    }
+    ~tcp_connection()
+    {
+        delete inBuf_;
+        inBuf_ = nullptr;
+        delete outBuf_;
+        outBuf_ = nullptr;
+    }
+    void start()
+    {
+        
+        if (inBuf_->writableBytes() < 1024) {
+         
+            inBuf_->recapacity(inBuf_->capacity() + 1024);
+   
+        }
+        socket_.async_read_some(boost::asio::buffer(inBuf_->data_ + inBuf_->writePos_, 1024),
+            boost::bind(&tcp_connection::handle_read, shared_from_this(),
+                boost::asio::placeholders::error,
+                boost::asio::placeholders::bytes_transferred));
+    }
+    void onMessage(pointer ptr, Buffer*buf) {
+        std::string str=buf->readAllAsString();
+        ptr->sendMessage(str.data(), str.size());
+    }
+    //处理发送信息
+    void sendMessage(char* data, size_t n)
+    {
+        outBuf_->append(data, n);
+        dealSend();
+    }
+    void dealSend()
+    {
+        if (!isSendingMessage_)
+        {
+           
+            isSendingMessage_ = true;
+         
+            if (outBuf_->readableBytes() > 0)
+                socket_.async_write_some(buffer(outBuf_->data_ + outBuf_->readPos_, std::min<int>(outBuf_->readableBytes(), 1024)), boost::bind(&tcp_connection::onSend, shared_from_this(), asio::placeholders::error, asio::placeholders::bytes_transferred));
+           
+            isSendingMessage_ = false;
+           
+        }
+
+    }
+    void onSend(system::error_code ec, size_t transferred_bytes)
+    {
+        outBuf_->readPos_ += transferred_bytes;
+        dealSend();
+
+    }
+
+private:
+   
+  
+
+    void handle_read(const boost::system::error_code& error,
+        size_t bytes_transferred)
+    {
+        if (error)
+        {
+            fail(error, "read");
+            onClosed();
+           
+            return;
+        }
+        inBuf_->writePos_ += bytes_transferred;
+        if (!isDealingMessage_)
+        {
+            isDealingMessage_ = true;
+          //  onMessageCallback_(shared_from_this(), inBuf_);
+      
+            onMessage(shared_from_this(), inBuf_);
+            isDealingMessage_ = false;
+        }
+        start();
+
+    }
+    void onClosed()
+    {
+        std::cout << "close.....\n";
+    }
+private:
+    tcp::socket socket_;
+    Buffer* inBuf_;
+    Buffer* outBuf_;
+    std::function<void(pointer, Buffer*)> onMessageCallback_;
+    std::atomic<bool> isDealingMessage_;
+    std::atomic<bool> isSendingMessage_;
+  
+
+};
+
+class tcp_server
+{
+public:
+    tcp_server(boost::asio::io_context& io_context,uint16_t port)
+        : io_context_(io_context),new_socket_(io_context),
+        acceptor_(io_context, tcp::endpoint(tcp::v4(),port))
+    {
+        start_accept();
+    }
+
+private:
+    void start_accept()
+    {
+        
+        acceptor_.async_accept(new_socket_,
+            boost::bind(&tcp_server::handle_accept,this,
+                boost::asio::placeholders::error));
+    }
+
+    void handle_accept(
+        const boost::system::error_code& error)
+    {
+        if (error)
+        {
+            fail(error, "handle_accept");
+            return;
+        }
+        tcp_connection::pointer(new tcp_connection(std::move(new_socket_)))->start();
+        start_accept();
+    }
+private:
+    boost::asio::io_context& io_context_;
+    tcp::acceptor acceptor_;
+    tcp::socket new_socket_;
+};
+
+int main(int argc,char**argv)
+{
+    try
+    {
+        if (argc < 2)
+        {
+            std::cout << "Usage <port>" << std::endl;
+        }
+        io_context io_context;
+        tcp_server server(io_context,atoi(argv[1]));
+        io_context.run();
+    }
+    catch (std::runtime_error er)
+    {
+        std::cout << er.what() << std::endl;
+    }
+    catch (std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
+
+    return 0;
 }

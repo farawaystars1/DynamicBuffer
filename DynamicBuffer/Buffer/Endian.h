@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __ENDIAN__H__
+#define __ENDIAN__H__
 typedef unsigned short uint16_t;
 typedef unsigned int   uint32_t;
 #ifdef _WINDOWS
@@ -8,12 +9,12 @@ typedef unsigned long  uint64_t;
 #endif
 
 namespace Endian {
-	uint16_t 
-	 htobe16_(uint16_t host)
+	static uint16_t 
+	  htobe16_(uint16_t host)
 	{
 		return host >> 8 | host << 8;
 	}
-	uint32_t
+	static uint32_t
 	 htobe32_(uint32_t host)
 	{
 		return (host >> 24) |\
@@ -21,7 +22,7 @@ namespace Endian {
 		       (host << 8 &  0xff0000) | \
 			   (host << 24);
 	}
-	uint64_t
+	static uint64_t
 	 htobe64_(uint64_t host)
 	{
 		return (host >> 56 & 0xff) | \
@@ -35,3 +36,4 @@ namespace Endian {
 	}
 	
 }
+#endif
