@@ -79,6 +79,7 @@ private:
         if (isSendingMessage_==false)
         {
             isSendingMessage_ = true;
+            std::cout << "start send..\n";
             //补充outBuf_2数据
             size_t n = outBuf_->readableBytes();
             if (n == 0) {
@@ -93,9 +94,6 @@ private:
             outBuf_2_->readPos_ = 0;
             outBuf_2_->writePos_= n;
             //send
-            std::cout << "start send..\n";
-        
-            std::cout <<"buf2 readable bytes:"<< outBuf_2_->readableBytes() << std::endl;
 
 
                 socket_.async_write_some(buffer(outBuf_2_->data_ + outBuf_2_->readPos_, outBuf_2_->readableBytes()), boost::bind(&tcp_connection::onSend, shared_from_this(), asio::placeholders::error, asio::placeholders::bytes_transferred));
@@ -109,10 +107,11 @@ private:
     void onSend(system::error_code ec, size_t transferred_bytes)
     {
         outBuf_2_->readPos_ += transferred_bytes;
-        std::cout << "end send...\n";
+       
         if (outBuf_2_->readableBytes() == 0)
         {
             isSendingMessage_ = false;
+            std::cout << "end send...\n";
             dealSend();
             return;
         }
