@@ -1,5 +1,7 @@
 #include "Buffer.h"
 #include"Endian.h"
+#include<chrono>
+#include<thread>
 Buffer::Buffer()
 {
 	data_ = new char[default_capacity];
@@ -75,18 +77,20 @@ int8_t Buffer::readInt8()
   void Buffer::read(char* outData, int n) {
 
 	 assert(readableBytes() >= n);
-	 readPos_ += n;
+	 mute.lock();
 	 memcpy(outData, data_ + readPos_, n);
-
+	 readPos_ += n;
+	 mute.unlock();
  }
 
   std::string Buffer::read(int n)
  {
-
+	 
 	 assert(readableBytes() >= n);
+	 mute.lock();
 	 std::string ret(readPos_ + data_, n);
 	 readPos_ += n;
-
+	 mute.unlock();
 	 return ret;
 
 
@@ -100,8 +104,10 @@ int8_t Buffer::readInt8()
 		 assert(str.size() + capacity_ <= max_capacity);
 		 recapacity(str.size() + capacity_);
 	 }
+	 mute.lock();
 	 memcpy(data_ + writePos_, str.data(), str.size());
 	 writePos_ += str.size();
+	 mute.unlock();
 
  }
 
@@ -120,12 +126,12 @@ int8_t Buffer::readInt8()
 
   std::string Buffer::readAllAsString()
  {
-
+	  mute.lock();
 	 std::string ret(data_ + readPos_, readableBytes());
 
 	 readPos_ = 0;
 	 writePos_ = 0;
-
+	 mute.unlock();
 	 return ret;
 
 
@@ -147,13 +153,16 @@ int8_t Buffer::readInt8()
 	 assert(capacity_new >= readableBytes());
 	 char* p = new char[capacity_new];
 	 int readable_size = readableBytes();
-	 memcpy(p, data_ + readPos_, readable_size);
 	 mute.lock();
+	 memcpy(p, data_ + readPos_, readable_size);
 	 readPos_ = 0;
 	 writePos_ = readable_size;
 	 capacity_ = capacity_new;
 	 delete[]data_;
 	 data_ = p;
+
+
 	 mute.unlock();
 
  }
+  

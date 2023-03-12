@@ -7,8 +7,9 @@
 #include<string>
 #include<mutex>
 #include<atomic>
+//读取写入数据线程安全 append/read
 #define ____BIG_ENDIAN
-
+//|data_-----readPos_--------(有效数据)---writePos_--------capacity_ |
 class Buffer :public std::enable_shared_from_this<Buffer>
 {
 	friend class tcp_connection;
@@ -89,5 +90,62 @@ private:
 	std::mutex mute;
 
 
+
+};
+
+//|data_-----readPos_--------(有效数据)-----capacity_ |
+class SimpleBuffer {
+public:
+	friend class tcp_connection;
+	static constexpr int defaultCapacity = 1024;
+	SimpleBuffer(){
+		data_ = new char[defaultCapacity];
+		capacity_ = defaultCapacity;
+		readPos_ = 0;
+		writePos_ = 0;
+	}
+	~SimpleBuffer(){
+		if (data_) {
+			delete[] data_;
+			data_ = nullptr;
+	}
+	}
+	void resize(size_t n)
+	{
+		if (n > capacity_) {
+			delete[]data_;
+			data_ = new char[n];
+			readPos_ = 0;
+			writePos_ = 0;
+			capacity_ = n;
+			
+		}
+		
+	}
+	//void read(char* out, size_t n)
+	//{
+	//	assert(n <= capacity_);
+	//	memcpy(out, data_, n);
+	//	readPos_ += n;
+
+	//}
+	//std::string readAllAsString()
+	//{
+	//	std::string ret(data_ + readPos_, size());
+	//	readPos_ = 0;
+	//	return ret;
+	//}
+	size_t readableBytes()const
+	{
+		return writePos_ - readPos_;
+	}
+	size_t capacity()const {
+		return capacity_;
+	}
+private:
+	char* data_;
+	size_t capacity_;
+	size_t readPos_;
+	size_t writePos_;
 
 };
